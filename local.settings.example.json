@@ -1,0 +1,16 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "JWT_SECRET": "replace-with-a-long-random-secret",
+    "FRONTEND_URL": "http://localhost:4280",
+    "CORS_ORIGIN": "*",
+    "BLOB_CONTAINER": "datasets",
+    "REDIS_CONNECTION_STRING": "",
+    "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_CLIENT_SECRET": "",
+    "GITHUB_CLIENT_ID": "",
+    "GITHUB_CLIENT_SECRET": ""
+  }
+}

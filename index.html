@@ -4,159 +4,502 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nutritional Insights</title>
-
-    <!-- Tailwind -->
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.0.0/dist/tailwind.min.css" rel="stylesheet">
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
+<body class="bg-gray-100 min-h-screen">
 
-<body class="bg-gray-100">
+    <!-- Auth gate -->
+    <div id="authPanel" class="min-h-screen flex items-center justify-center p-6">
+        <div class="bg-white shadow-lg rounded-lg max-w-md w-full p-8">
+            <h1 class="text-2xl font-semibold text-gray-800 mb-2">Nutritional Insights</h1>
+            <p class="text-sm text-gray-600 mb-6">Sign in to view the dashboard.</p>
 
-<header class="bg-blue-600 p-4 text-white">
-    <h1 class="text-3xl font-semibold">Nutritional Insights</h1>
-</header>
+            <div class="flex gap-2 mb-6">
+                <button type="button" id="tabLogin" class="flex-1 py-2 rounded bg-blue-600 text-white font-medium">Login</button>
+                <button type="button" id="tabRegister" class="flex-1 py-2 rounded bg-gray-200 text-gray-800 font-medium">Register</button>
+            </div>
 
-<main class="container mx-auto p-6">
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Email</label>
+                    <input id="loginEmail" type="email" required class="w-full p-2 border rounded" autocomplete="username">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Password</label>
+                    <input id="loginPassword" type="password" required class="w-full p-2 border rounded" autocomplete="current-password">
+                </div>
+                <p id="loginError" class="text-sm text-red-600 hidden"></p>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded font-medium">Login</button>
+            </form>
 
-<section class="mb-8">
-    <h2 class="text-2xl font-semibold mb-4">Explore Nutritional Insights</h2>
+            <form id="registerForm" class="space-y-4 hidden">
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Display name</label>
+                    <input id="regName" type="text" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Email</label>
+                    <input id="regEmail" type="email" required class="w-full p-2 border rounded" autocomplete="email">
+                </div>
+                <div>
+                    <label class="block text-sm text-gray-600 mb-1">Password</label>
+                    <input id="regPassword" type="password" required minlength="8" class="w-full p-2 border rounded" autocomplete="new-password">
+                </div>
+                <p id="registerError" class="text-sm text-red-600 hidden"></p>
+                <button type="submit" class="w-full bg-green-600 text-white py-2 rounded font-medium">Create account</button>
+            </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-
-        <div class="bg-white p-4 shadow-lg rounded-lg">
-            <h3 class="font-semibold">Bar Chart</h3>
-            <canvas id="barChart"></canvas>
+            <div class="mt-6 border-t pt-6">
+                <p class="text-sm text-gray-500 mb-3">Or continue with</p>
+                <div class="flex flex-col gap-2">
+                    <a id="linkGoogle" href="#" class="text-center bg-white border border-gray-300 text-gray-800 py-2 px-4 rounded font-medium">Login with Google</a>
+                    <a id="linkGitHub" href="#" class="text-center bg-gray-900 text-white py-2 px-4 rounded font-medium">Login with GitHub</a>
+                </div>
+                <p class="text-xs text-gray-400 mt-4">API base: <span id="apiBaseLabel"></span>. Override with <code class="bg-gray-100 px-1 rounded">?api=http://localhost:7071/api</code></p>
+            </div>
         </div>
-
-        <div class="bg-white p-4 shadow-lg rounded-lg">
-            <h3 class="font-semibold">Scatter Plot</h3>
-            <canvas id="scatterPlot"></canvas>
-        </div>
-
-        <div class="bg-white p-4 shadow-lg rounded-lg">
-            <h3 class="font-semibold">Heatmap (Simulated)</h3>
-            <canvas id="heatmap"></canvas>
-        </div>
-
-        <div class="bg-white p-4 shadow-lg rounded-lg">
-            <h3 class="font-semibold">Pie Chart</h3>
-            <canvas id="pieChart"></canvas>
-        </div>
-
     </div>
-</section>
 
-<section class="mb-8">
-    <div>
-        <select id="dietSelect" class="p-2 border rounded w-full sm:w-auto mb-4">
-            <option value="all">All Diet Types</option>
-            <option value="Vegan">Vegan</option>
-            <option value="Keto">Keto</option>
-            <option value="Paleo">Paleo</option>
-        </select>
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden">
+        <header class="bg-blue-600 p-4 text-white flex flex-wrap items-center justify-between gap-4">
+            <h1 class="text-2xl md:text-3xl font-semibold">Nutritional Insights</h1>
+            <div class="flex items-center gap-4">
+                <span id="userLabel" class="text-sm md:text-base font-medium"></span>
+                <button type="button" id="btnLogout" class="bg-white text-blue-700 py-1 px-4 rounded font-medium hover:bg-gray-100">Logout</button>
+            </div>
+        </header>
+
+        <main class="container mx-auto p-6">
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Explore Nutritional Insights</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="bg-white p-4 shadow-lg rounded-lg">
+                        <h3 class="font-semibold">Bar Chart</h3>
+                        <p class="text-sm text-gray-600">Average macronutrient content by diet type.</p>
+                        <canvas id="barChart" class="w-full h-48 mt-2"></canvas>
+                    </div>
+                    <div class="bg-white p-4 shadow-lg rounded-lg">
+                        <h3 class="font-semibold">Scatter Plot</h3>
+                        <p class="text-sm text-gray-600">Protein vs carbs (sample of recipes).</p>
+                        <canvas id="scatterPlot" class="w-full h-48 mt-2"></canvas>
+                    </div>
+                    <div class="bg-white p-4 shadow-lg rounded-lg">
+                        <h3 class="font-semibold">Heatmap</h3>
+                        <p class="text-sm text-gray-600">Correlation between macros.</p>
+                        <div id="heatmap" class="w-full h-48 mt-2 overflow-auto text-xs"></div>
+                    </div>
+                    <div class="bg-white p-4 shadow-lg rounded-lg">
+                        <h3 class="font-semibold">Pie Chart</h3>
+                        <p class="text-sm text-gray-600">Recipe count by diet type.</p>
+                        <canvas id="pieChart" class="w-full h-48 mt-2"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Filters and Data Interaction</h2>
+                <div class="flex flex-wrap gap-4 items-end">
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Keyword</label>
+                        <input id="searchKeyword" type="text" placeholder="Search recipe name" class="p-2 border rounded w-full sm:w-64">
+                    </div>
+                    <div>
+                        <label class="block text-sm text-gray-600 mb-1">Diet type</label>
+                        <select id="dietSelect" class="p-2 border rounded w-full sm:w-auto">
+                            <option value="all">All Diet Types</option>
+                            <option value="vegan">Vegan</option>
+                            <option value="keto">Keto</option>
+                            <option value="paleo">Paleo</option>
+                            <option value="mediterranean">Mediterranean</option>
+                            <option value="dash">Dash</option>
+                        </select>
+                    </div>
+                    <button type="button" id="btnApplyFilters" class="bg-blue-600 text-white py-2 px-4 rounded h-10">Apply</button>
+                </div>
+            </section>
+
+            <section class="mb-8">
+                <h2 class="text-2xl font-semibold mb-4">API Data Interaction</h2>
+                <div class="flex flex-wrap gap-4">
+                    <button type="button" id="btnInsights" class="bg-blue-600 text-white py-2 px-4 rounded">Get Nutritional Insights</button>
+                    <button type="button" id="btnRecipes" class="bg-green-600 text-white py-2 px-4 rounded">Get Recipes</button>
+                    <button type="button" id="btnClusters" class="bg-purple-600 text-white py-2 px-4 rounded">Get Clusters</button>
+                </div>
+                <pre id="apiOutput" class="mt-4 bg-gray-900 text-green-200 text-xs p-4 rounded-lg overflow-auto max-h-64 hidden"></pre>
+            </section>
+
+            <section class="mt-8 mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Security &amp; Compliance</h2>
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Security Status</h3>
+                    <p class="text-sm text-gray-600">Passwords: <span class="font-semibold text-green-600">bcrypt hashes only</span> (never plaintext).</p>
+                    <p class="text-sm text-gray-600">Data at rest: <span class="font-semibold text-green-600">Use Azure SQL/Cosmos with encryption</span> for production; SQLite here is for dev.</p>
+                    <p class="text-sm text-gray-600">OAuth: <span class="font-semibold text-green-600">Google &amp; GitHub</span> (configure client IDs in Function App settings).</p>
+                </div>
+            </section>
+
+            <section class="mt-8 mb-8">
+                <h2 class="text-2xl font-semibold mb-4">OAuth &amp; 2FA Integration</h2>
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <h3 class="font-semibold">Secure Login</h3>
+                    <p class="text-sm text-gray-600 mb-3">Third-party login uses the buttons on the sign-in screen. Optional 2FA can be added with a provider such as Microsoft Entra ID.</p>
+                    <label for="twoFa" class="block text-sm text-gray-600">2FA placeholder (not wired in demo)</label>
+                    <input id="twoFa" type="text" class="p-2 border rounded w-full max-w-md mt-1" placeholder="Enter your 2FA code" disabled>
+                </div>
+            </section>
+
+            <section class="mt-8 mb-8">
+                <h2 class="text-2xl font-semibold mb-4">Cloud Resource Cleanup</h2>
+                <div class="bg-white p-4 shadow-lg rounded-lg">
+                    <p class="text-sm text-gray-600 mb-3">Remove test resources in Azure Portal when you are done with the project.</p>
+                    <button type="button" id="btnCleanup" class="bg-red-600 text-white py-2 px-4 rounded">Clean Up Resources</button>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="text-2xl font-semibold mb-4">Recipe results</h2>
+                <div id="recipeTableWrap" class="bg-white shadow rounded-lg overflow-x-auto hidden">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-100 text-left">
+                            <tr>
+                                <th class="p-2">Diet</th>
+                                <th class="p-2">Recipe</th>
+                                <th class="p-2">Cuisine</th>
+                                <th class="p-2">Protein</th>
+                                <th class="p-2">Carbs</th>
+                                <th class="p-2">Fat</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recipeBody"></tbody>
+                    </table>
+                </div>
+                <p id="recipeMeta" class="text-sm text-gray-600 mt-2 hidden"></p>
+                <h2 class="text-2xl font-semibold mb-4 mt-8">Pagination</h2>
+                <div class="flex justify-center flex-wrap gap-2 mt-2">
+                    <button type="button" id="pagePrev" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">Previous</button>
+                    <span id="pageIndicator" class="px-3 py-1 text-sm self-center"></span>
+                    <button type="button" id="pageNext" class="px-3 py-1 bg-gray-300 rounded hover:bg-gray-400">Next</button>
+                </div>
+            </section>
+        </main>
+
+        <footer class="bg-blue-600 p-4 text-white text-center mt-10">
+            <p>&copy; 2026 Nutritional Insights. All Rights Reserved.</p>
+        </footer>
     </div>
-
-    <div>
-        <button onclick="loadData()" class="bg-blue-600 text-white py-2 px-4 rounded">
-            Load Data
-        </button>
-    </div>
-</section>
-
-</main>
 
 <script>
-const API_URL = "https://diet-function-123.azurewebsites.net/api/analyze";
-
-let barChart, scatterChart, pieChart, heatmapChart;
-
-async function loadData() {
-    const diet = document.querySelector("select").value;
-    const res = await fetch(API_URL + "?diet=" + diet);
-    const data = await res.json();
-
-    renderBar(data);
-    renderScatter(data);
-    renderPie(data);
-    renderHeatmap(data);
-}
-
-function renderBar(data) {
-    if (barChart) barChart.destroy();
-
-    const ctx = document.getElementById('barChart');
-
-    barChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [
-                { label: 'Protein', data: data.protein },
-                { label: 'Carbs', data: data.carbs },
-                { label: 'Fat', data: data.fat }
-            ]
+(function () {
+    const API_BASE = (() => {
+        const q = new URLSearchParams(location.search).get('api');
+        if (q) return q.replace(/\/$/, '');
+        const saved = localStorage.getItem('DIET_API_BASE');
+        if (saved) return saved.replace(/\/$/, '');
+        if (location.port === '4280' || location.port === '5500' || location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
+            return 'http://localhost:7071/api';
         }
-    });
-}
+        return (location.origin + '/api').replace(/\/$/, '');
+    })();
 
-function renderScatter(data) {
-    if (scatterChart) scatterChart.destroy();
+    const TOKEN_KEY = 'DIET_JWT';
 
-    const ctx = document.getElementById('scatterPlot');
+    function authHeaders() {
+        const t = localStorage.getItem(TOKEN_KEY);
+        const h = { 'Content-Type': 'application/json' };
+        if (t) h['Authorization'] = 'Bearer ' + t;
+        return h;
+    }
 
-    const scatterData = data.protein.map((p, i) => ({
-        x: p,
-        y: data.carbs[i]
-    }));
+    async function apiFetch(path, opts) {
+        const res = await fetch(API_BASE + path, Object.assign({ headers: authHeaders() }, opts || {}));
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); } catch (_) { data = { error: text || res.statusText }; }
+        if (!res.ok) throw new Error(data.error || res.statusText);
+        return data;
+    }
 
-    scatterChart = new Chart(ctx, {
-        type: 'scatter',
-        data: {
-            datasets: [{
-                label: 'Protein vs Carbs',
-                data: scatterData
-            }]
+    function showAuth() {
+        document.getElementById('authPanel').classList.remove('hidden');
+        document.getElementById('dashboard').classList.add('hidden');
+    }
+
+    function showDash(user) {
+        document.getElementById('authPanel').classList.add('hidden');
+        document.getElementById('dashboard').classList.remove('hidden');
+        document.getElementById('userLabel').textContent = user.display_name || user.email;
+    }
+
+    function logout() {
+        localStorage.removeItem(TOKEN_KEY);
+        showAuth();
+    }
+
+    document.getElementById('apiBaseLabel').textContent = API_BASE;
+
+    document.getElementById('tabLogin').onclick = () => {
+        document.getElementById('loginForm').classList.remove('hidden');
+        document.getElementById('registerForm').classList.add('hidden');
+    };
+    document.getElementById('tabRegister').onclick = () => {
+        document.getElementById('registerForm').classList.remove('hidden');
+        document.getElementById('loginForm').classList.add('hidden');
+    };
+
+    document.getElementById('linkGoogle').href = API_BASE + '/auth/oauth/google';
+    document.getElementById('linkGitHub').href = API_BASE + '/auth/oauth/github';
+
+    document.getElementById('loginForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const err = document.getElementById('loginError');
+        err.classList.add('hidden');
+        try {
+            const body = {
+                email: document.getElementById('loginEmail').value,
+                password: document.getElementById('loginPassword').value
+            };
+            const res = await fetch(API_BASE + '/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Login failed');
+            localStorage.setItem(TOKEN_KEY, data.token);
+            showDash(data.user);
+            loadCharts();
+        } catch (x) {
+            err.textContent = x.message;
+            err.classList.remove('hidden');
         }
-    });
-}
+    };
 
-function renderPie(data) {
-    if (pieChart) pieChart.destroy();
-
-    const ctx = document.getElementById('pieChart');
-
-    pieChart = new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: data.labels,
-            datasets: [{
-                data: data.protein
-            }]
+    document.getElementById('registerForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const err = document.getElementById('registerError');
+        err.classList.add('hidden');
+        try {
+            const body = {
+                email: document.getElementById('regEmail').value,
+                password: document.getElementById('regPassword').value,
+                display_name: document.getElementById('regName').value || document.getElementById('regEmail').value
+            };
+            const res = await fetch(API_BASE + '/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Register failed');
+            localStorage.setItem(TOKEN_KEY, data.token);
+            showDash(data.user);
+            loadCharts();
+        } catch (x) {
+            err.textContent = x.message;
+            err.classList.remove('hidden');
         }
-    });
-}
+    };
 
-function renderHeatmap(data) {
-    if (heatmapChart) heatmapChart.destroy();
+    document.getElementById('btnLogout').onclick = logout;
 
-    const ctx = document.getElementById('heatmap');
-
-    // fake heatmap using bar chart (simple workaround)
-    heatmapChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [
-                { label: 'Protein', data: data.protein },
-                { label: 'Carbs', data: data.carbs },
-                { label: 'Fat', data: data.fat }
-            ]
+    function consumeOAuthTokenFromHash() {
+        const h = location.hash || '';
+        if (!h.includes('token=')) return;
+        const params = new URLSearchParams(h.replace(/^#/, ''));
+        const t = params.get('token');
+        if (t) {
+            localStorage.setItem(TOKEN_KEY, decodeURIComponent(t));
+            history.replaceState(null, '', location.pathname + location.search);
         }
-    });
-}
+    }
+
+    let barChart, scatterChart, pieChart;
+
+    async function loadCharts() {
+        const diet = document.getElementById('dietSelect').value;
+        const data = await apiFetch('/analyze?diet=' + encodeURIComponent(diet));
+
+        if (barChart) barChart.destroy();
+        barChart = new Chart(document.getElementById('barChart'), {
+            type: 'bar',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    { label: 'Protein', data: data.protein, backgroundColor: 'rgba(59,130,246,0.6)' },
+                    { label: 'Carbs', data: data.carbs, backgroundColor: 'rgba(16,185,129,0.6)' },
+                    { label: 'Fat', data: data.fat, backgroundColor: 'rgba(245,158,11,0.6)' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        if (scatterChart) scatterChart.destroy();
+        const pts = (data.scatter || []).map(p => ({ x: p.x, y: p.y }));
+        scatterChart = new Chart(document.getElementById('scatterPlot'), {
+            type: 'scatter',
+            data: {
+                datasets: [{ label: 'Recipes', data: pts, backgroundColor: 'rgba(99,102,241,0.5)' }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { title: { display: true, text: 'Protein (g)' } },
+                    y: { title: { display: true, text: 'Carbs (g)' } }
+                }
+            }
+        });
+
+        if (pieChart) pieChart.destroy();
+        const pie = data.pie || { labels: [], data: [] };
+        pieChart = new Chart(document.getElementById('pieChart'), {
+            type: 'pie',
+            data: {
+                labels: pie.labels,
+                datasets: [{ data: pie.data, backgroundColor: ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+        });
+
+        const hm = document.getElementById('heatmap');
+        hm.innerHTML = '';
+        const mat = (data.heatmap && data.heatmap.matrix) || [];
+        const labels = (data.heatmap && data.heatmap.labels) || [];
+        if (!mat.length) {
+            hm.textContent = 'No correlation data';
+            return;
+        }
+        const table = document.createElement('table');
+        table.className = 'border-collapse w-full text-center';
+        const trh = document.createElement('tr');
+        trh.appendChild(document.createElement('th'));
+        labels.forEach(l => {
+            const th = document.createElement('th');
+            th.textContent = l;
+            th.className = 'p-1 border text-gray-600';
+            trh.appendChild(th);
+        });
+        table.appendChild(trh);
+        mat.forEach((row, i) => {
+            const tr = document.createElement('tr');
+            const th = document.createElement('th');
+            th.textContent = labels[i] || '';
+            th.className = 'p-1 border text-left text-gray-600';
+            tr.appendChild(th);
+            row.forEach(cell => {
+                const td = document.createElement('td');
+                td.className = 'p-1 border';
+                const v = Math.abs(cell);
+                const bg = `rgba(37,99,235,${Math.min(0.15 + v, 1)})`;
+                td.style.backgroundColor = bg;
+                td.textContent = typeof cell === 'number' ? cell.toFixed(2) : cell;
+                tr.appendChild(td);
+            });
+            table.appendChild(tr);
+        });
+        hm.appendChild(table);
+    }
+
+    let recipePage = 1;
+
+    async function loadRecipes(page) {
+        recipePage = page;
+        const diet = document.getElementById('dietSelect').value;
+        const q = document.getElementById('searchKeyword').value || '';
+        const qs = new URLSearchParams({ page: String(page), page_size: '10', diet, q });
+        const data = await apiFetch('/recipes?' + qs.toString());
+        const tbody = document.getElementById('recipeBody');
+        tbody.innerHTML = '';
+        (data.items || []).forEach(row => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-t';
+            ['Diet_type', 'Recipe_name', 'Cuisine_type', 'Protein(g)', 'Carbs(g)', 'Fat(g)'].forEach(k => {
+                const td = document.createElement('td');
+                td.className = 'p-2 align-top';
+                td.textContent = row[k] != null ? row[k] : '';
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+        document.getElementById('recipeTableWrap').classList.remove('hidden');
+        const meta = document.getElementById('recipeMeta');
+        meta.classList.remove('hidden');
+        meta.textContent = `Page ${data.page} of ${data.total_pages} — ${data.total} recipes`;
+        document.getElementById('pageIndicator').textContent = `Page ${data.page} / ${data.total_pages}`;
+    }
+
+    document.getElementById('btnApplyFilters').onclick = async () => {
+        try { await loadCharts(); await loadRecipes(1); }
+        catch (e) { alert(e.message); }
+    };
+
+    document.getElementById('btnInsights').onclick = async () => {
+        const out = document.getElementById('apiOutput');
+        try {
+            const data = await apiFetch('/insights');
+            out.textContent = JSON.stringify(data, null, 2);
+            out.classList.remove('hidden');
+        } catch (e) {
+            out.textContent = e.message;
+            out.classList.remove('hidden');
+        }
+    };
+    document.getElementById('btnRecipes').onclick = async () => {
+        const out = document.getElementById('apiOutput');
+        try {
+            await loadRecipes(recipePage);
+            out.textContent = 'Loaded recipes into the table below.';
+            out.classList.remove('hidden');
+        } catch (e) {
+            out.textContent = e.message;
+            out.classList.remove('hidden');
+        }
+    };
+    document.getElementById('btnClusters').onclick = async () => {
+        const out = document.getElementById('apiOutput');
+        try {
+            const data = await apiFetch('/clusters');
+            out.textContent = JSON.stringify(data, null, 2);
+            out.classList.remove('hidden');
+        } catch (e) {
+            out.textContent = e.message;
+            out.classList.remove('hidden');
+        }
+    };
+
+    document.getElementById('pagePrev').onclick = async () => {
+        if (recipePage <= 1) return;
+        try { await loadRecipes(recipePage - 1); } catch (e) { alert(e.message); }
+    };
+    document.getElementById('pageNext').onclick = async () => {
+        try { await loadRecipes(recipePage + 1); } catch (e) { alert(e.message); }
+    };
+
+    document.getElementById('btnCleanup').onclick = () => {
+        alert('Delete or stop your Azure Function App, Storage account, Static Web App, Redis/Cosmos (if any), and App Registration secrets when the course is finished.');
+    };
+
+    async function boot() {
+        consumeOAuthTokenFromHash();
+        const token = localStorage.getItem(TOKEN_KEY);
+        if (!token) {
+            showAuth();
+            return;
+        }
+        try {
+            const me = await apiFetch('/auth/me');
+            showDash(me.user);
+            await loadCharts();
+            await loadRecipes(1);
+        } catch (_) {
+            logout();
+        }
+    }
+
+    boot();
+})();
 </script>
-
 </body>
 </html>
