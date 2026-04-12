@@ -205,6 +205,7 @@
     function normalizeApiBase(s) {
         if (!s || !String(s).trim()) return null;
         var v = String(s).trim().replace(/\/+$/, '');
+        v = v.replace(/\/api\/+api$/i, '/api');
         if (!/\/api$/i.test(v)) {
             v = v + '/api';
         }
@@ -218,7 +219,13 @@
         var q = new URLSearchParams(location.search).get('api');
         if (q) return normalizeApiBase(q);
         var saved = localStorage.getItem('DIET_API_BASE');
-        if (saved) return normalizeApiBase(saved);
+        if (saved) {
+            var normalizedSaved = normalizeApiBase(saved);
+            if (normalizedSaved !== saved) {
+                localStorage.setItem('DIET_API_BASE', normalizedSaved);
+            }
+            return normalizedSaved;
+        }
         if (typeof window.DIET_API_BASE === 'string' && window.DIET_API_BASE.trim()) {
             return normalizeApiBase(window.DIET_API_BASE);
         }
@@ -232,6 +239,20 @@
     }
 
     var API_BASE = resolveApiBase();
+
+    /** Full URL for Azure Functions: base MUST end with /api, path MUST start with / (e.g. /auth/login → .../api/auth/login). */
+    function buildApiUrl(path) {
+        if (!API_BASE) return '';
+        var base = API_BASE.replace(/\/+$/, '');
+        var p = path == null ? '' : String(path);
+        if (p.charAt(0) !== '/') {
+            p = '/' + p;
+        }
+        if (p.indexOf('/api/') === 0) {
+            p = p.replace(/^\/api/, '') || '/';
+        }
+        return base + p;
+    }
 
     const TOKEN_KEY = 'DIET_JWT';
 
@@ -257,8 +278,8 @@
             g.classList.add('opacity-60');
             gh.classList.add('opacity-60');
         } else {
-            g.setAttribute('href', API_BASE + '/auth/oauth/google');
-            gh.setAttribute('href', API_BASE + '/auth/oauth/github');
+            g.setAttribute('href', buildApiUrl('/auth/oauth/google'));
+            gh.setAttribute('href', buildApiUrl('/auth/oauth/github'));
             g.onclick = null;
             gh.onclick = null;
             g.classList.remove('opacity-60');
@@ -266,24 +287,49 @@
         }
     }
 
+    function looksLikeHtmlBody(s) {
+        if (!s || typeof s !== 'string') return false;
+        var t = s.replace(/^\uFEFF/, '').trim();
+        if (t.charAt(0) === '<') return true;
+        if (/<\s*!DOCTYPE/i.test(t)) return true;
+        if (/<\s*html[\s>]/i.test(t)) return true;
+        return false;
+    }
+
     async function apiFetch(path, opts) {
         if (!API_BASE) {
             throw new Error('Set your Azure Function API base URL (yellow box), then Save & reload.');
         }
-        const res = await fetch(API_BASE + path, Object.assign({ headers: authHeaders() }, opts || {}));
+        var url = buildApiUrl(path);
+        console.log('[diet-api] Attempting to fetch:', url);
+        const res = await fetch(url, Object.assign({ headers: authHeaders() }, opts || {}));
         const text = await res.text();
-        const trimmed = text.trim();
-        if (trimmed.startsWith('<')) {
+        console.log('[diet-api] Raw Response Text (length ' + text.length + '):', text);
+        var trimmed = text.replace(/^\uFEFF/, '').trim();
+        if (!trimmed) {
+            console.error('[diet-api] Empty response body. HTTP', res.status, res.statusText);
+            throw new Error('Empty response from API (HTTP ' + res.status + '). URL: ' + url);
+        }
+        if (looksLikeHtmlBody(text)) {
+            console.error('[diet-api] Response looks like HTML, not JSON. HTTP status:', res.status, res.statusText);
             throw new Error(
                 'The server returned a web page (HTML), not JSON (HTTP ' + res.status + '). ' +
-                'Usually the API URL is wrong or the Function App is down. Use your Azure Function base ending in /api ' +
-                '(example: https://YOUR-APP.azurewebsites.net/api), not a GitHub Pages or static file URL.'
+                'Check DevTools → Network: the request URL must be your Function App, ending with /api/... ' +
+                '(e.g. https://YOUR-APP.azurewebsites.net/api/auth/login). If you see your GitHub Pages or ' +
+                'azurewebsites.net root without /api, fix the yellow "Azure Function API base" box.'
             );
         }
         let data;
         try {
             data = JSON.parse(text);
         } catch (parseErr) {
+            console.error('[diet-api] JSON.parse failed:', parseErr);
+            if (looksLikeHtmlBody(text) || /<\s*html/i.test(text)) {
+                throw new Error(
+                    'Server returned HTML (detected after JSON.parse failure). HTTP ' + res.status + '. ' +
+                    'Verify URL: ' + url
+                );
+            }
             throw new Error(
                 'Invalid JSON from API (HTTP ' + res.status + '): ' + (trimmed ? trimmed.slice(0, 160) : res.statusText)
             );
