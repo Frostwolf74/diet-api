@@ -194,16 +194,7 @@
 
 <script>
 (function () {
-    const API_BASE = (() => {
-        const q = new URLSearchParams(location.search).get('api');
-        if (q) return q.replace(/\/$/, '');
-        const saved = localStorage.getItem('DIET_API_BASE');
-        if (saved) return saved.replace(/\/$/, '');
-        if (location.port === '4280' || location.port === '5500' || location.hostname === '127.0.0.1' || location.hostname === 'localhost') {
-            return 'http://localhost:7071/api';
-        }
-        return (location.origin + '/api').replace(/\/$/, '');
-    })();
+    const API_BASE = 'https://diet-function-123.azurewebsites.net/api';
 
     const TOKEN_KEY = 'DIET_JWT';
 
