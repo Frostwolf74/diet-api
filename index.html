@@ -262,13 +262,12 @@
                 email: document.getElementById('loginEmail').value,
                 password: document.getElementById('loginPassword').value
             };
-            const res = await fetch(API_BASE + '/auth/login', {
+            // USING THE NEW SAFE FETCH!
+            const data = await apiFetch('/auth/login', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Login failed');
+            
             localStorage.setItem(TOKEN_KEY, data.token);
             showDash(data.user);
             loadCharts();
@@ -288,13 +287,12 @@
                 password: document.getElementById('regPassword').value,
                 display_name: document.getElementById('regName').value || document.getElementById('regEmail').value
             };
-            const res = await fetch(API_BASE + '/auth/register', {
+            // USING THE NEW SAFE FETCH!
+            const data = await apiFetch('/auth/register', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error || 'Register failed');
+
             localStorage.setItem(TOKEN_KEY, data.token);
             showDash(data.user);
             loadCharts();
@@ -303,7 +301,7 @@
             err.classList.remove('hidden');
         }
     };
-
+    
     document.getElementById('btnLogout').onclick = logout;
 
     function consumeOAuthTokenFromHash() {
