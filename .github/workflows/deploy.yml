@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # CHANGED: Using the full name revealed in your logs
+  # This is the "True Name" we discovered in your logs!
   AZURE_FUNCTIONAPP_NAME: diet-api-hfegcjavhcamckcc 
   PYTHON_VERSION: "3.11"
 
