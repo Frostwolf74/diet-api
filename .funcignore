@@ -10,6 +10,7 @@ __pycache__
 .env
 .venv
 venv
+.python_packages
 local.settings.json
 *.md
 __blobstorage__

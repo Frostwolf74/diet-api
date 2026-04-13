@@ -1,8 +1,11 @@
-# Deploy: build zip, then async Kudu ZipDeploy (?isAsync=true) + poll — avoids HTTP 502 on large sync uploads.
-# (Removed duplicate webapps-deploy step and invalid sku / remote-build — not supported by that action.)
+# Deploy: small source zip + async Kudu ZipDeploy + poll. Dependencies are built on Azure (Oryx),
+# because ~30MB+ vendored .python_packages reliably hits SCM 502 on ZipDeploy for this app.
 #
 # Secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData>
 # Portal: SCM Basic Auth Publishing Credentials = On, then re-download publish profile.
+# Portal → Configuration → Application settings (required once):
+#   SCM_DO_BUILD_DURING_DEPLOYMENT = 1
+#   ENABLE_ORYX_BUILD = 1
 
 name: Deploy Python API to Azure
 
@@ -44,25 +47,11 @@ jobs:
           test -f function_app.py || { echo "::error::function_app.py missing"; exit 1; }
           python -m compileall -q function_app.py shared
 
-      - name: Install dependencies into .python_packages
+      - name: Remote build (Oryx) note
         run: |
           set -euo pipefail
-          python -m pip install --upgrade pip wheel
-          mkdir -p .python_packages/lib/site-packages
-          PIP_DISABLE_PIP_VERSION_CHECK=1 \
-            pip install --no-cache-dir -r requirements.txt \
-            --target=".python_packages/lib/site-packages"
-
-      - name: Prune site-packages tests dirs (smaller zip, fewer ZipDeploy timeouts)
-        run: |
-          set -euo pipefail
-          SP=".python_packages/lib/site-packages"
-          if [ -d "$SP" ]; then
-            find "$SP" -type d -name tests -print0 2>/dev/null | while IFS= read -r -d '' d; do
-              rm -rf "$d"
-            done
-          fi
-          du -sh .python_packages 2>/dev/null || true
+          test -f requirements.txt || { echo "::error::requirements.txt missing (needed for Oryx remote build)"; exit 1; }
+          echo "::notice::Function App must have SCM_DO_BUILD_DURING_DEPLOYMENT=1 and ENABLE_ORYX_BUILD=1 so Azure runs pip during deploy. Omitting vendored .python_packages keeps ZipDeploy under SCM limits."
 
       - name: Create deployment zip
         run: |
@@ -75,6 +64,7 @@ jobs:
             -x '*.pyc' \
             -x '.venv/*' \
             -x 'venv/*' \
+            -x '.python_packages/*' \
             -x 'local.settings.json' \
             -x '__blobstorage__/*' \
             -x '__queuestorage__/*' \
@@ -88,6 +78,7 @@ jobs:
           KUDU_ZIPDEPLOY_POST_TIMEOUT_SEC: "1800"
           KUDU_ZIPDEPLOY_RETRIES: "6"
           KUDU_ZIPDEPLOY_RETRY_BACKOFF_SEC: "30"
+          KUDU_POLL_TIMEOUT_SEC: "1800"
         run: |
           set -euo pipefail
           python3 "${GITHUB_WORKSPACE}/.github/scripts/kudu_zipdeploy.py"
