@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # STEP: Paste the EXACT name from the "All Resources" Name column here
-  AZURE_FUNCTIONAPP_NAME: diet-api-hfegcjavhcamckcc 
+  # Matching the exact name found in your XML!
+  AZURE_FUNCTIONAPP_NAME: diet-api 
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -35,10 +35,9 @@ jobs:
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
 
       - name: Zip for Deployment
-        # This bypasses the "415 Unsupported Media Type" error
         run: zip -r release.zip . -x "*.git*"
 
-      - name: The Bypass — Deploy Zip
+      - name: The Final Bypass — Deploy Zip
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
