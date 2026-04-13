@@ -1,4 +1,4 @@
-# Deploy: build zip, then POST to Kudu ZipDeploy using publish profile XML.
+# Deploy: build zip, then async Kudu ZipDeploy (?isAsync=true) + poll — avoids HTTP 502 on large sync uploads.
 # (Removed duplicate webapps-deploy step and invalid sku / remote-build — not supported by that action.)
 #
 # Secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData>
