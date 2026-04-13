@@ -4,10 +4,14 @@ POST a zip to Kudu ZipDeploy using publish profile XML in PUBLISH_PROFILE.
 
 Uses async ZipDeploy (?isAsync=true) and polls /api/deployments/latest — synchronous
 zipdeploy often hits HTTP 502 (gateway timeout) on larger Python function packages.
+
+Uploads the zip in chunks via http.client (does not buffer the whole file in RAM) and
+retries on transient 502/503/504 — ARR/frontends sometimes drop long uploads.
 """
 from __future__ import annotations
 
 import base64
+import http.client
 import json
 import os
 import ssl
@@ -20,6 +24,39 @@ import xml.etree.ElementTree as ET
 
 def _basic_auth_header(user: str, pwd: str) -> str:
     return "Basic " + base64.b64encode(f"{user}:{pwd}".encode()).decode()
+
+
+def _post_zipdeploy_streaming(
+    host: str,
+    auth_header: str,
+    zip_path: str,
+    *,
+    ssl_ctx: ssl.SSLContext,
+    timeout_sec: float,
+    chunk_bytes: int = 1024 * 1024,
+) -> tuple[int, bytes]:
+    """POST /api/zipdeploy?isAsync=true with Content-Length; stream body from disk."""
+    size = os.path.getsize(zip_path)
+    conn = http.client.HTTPSConnection(host, context=ssl_ctx, timeout=timeout_sec)
+    try:
+        conn.putrequest("POST", "/api/zipdeploy?isAsync=true")
+        conn.putheader("Authorization", auth_header)
+        conn.putheader("Content-Type", "application/zip")
+        conn.putheader("Content-Length", str(size))
+        conn.putheader("Connection", "close")
+        conn.endheaders()
+        with open(zip_path, "rb") as fp:
+            while True:
+                chunk = fp.read(chunk_bytes)
+                if not chunk:
+                    break
+                conn.send(chunk)
+        resp = conn.getresponse()
+        status = resp.status
+        raw = resp.read(65536)
+        return status, raw
+    finally:
+        conn.close()
 
 
 def main() -> int:
@@ -36,6 +73,10 @@ def main() -> int:
         return 1
 
     host = (zp.get("publishUrl") or "").replace(":443", "").strip()
+    for prefix in ("https://", "http://"):
+        if host.startswith(prefix):
+            host = host[len(prefix) :]
+            break
     user = zp.get("userName") or ""
     pwd = zp.get("userPWD") or ""
     if not host or not user or not pwd:
@@ -46,25 +87,28 @@ def main() -> int:
     ctx = ssl.create_default_context()
 
     zip_path = os.environ.get("ZIP_PATH", "/tmp/functionapp.zip")
-    with open(zip_path, "rb") as f:
-        body = f.read()
-    print("Zip bytes:", len(body))
+    zip_size = os.path.getsize(zip_path)
+    print("Zip bytes:", zip_size)
 
-    # Async avoids front-door / ARR 502 while Kudu extracts a large zip.
+    post_timeout = float(os.environ.get("KUDU_ZIPDEPLOY_POST_TIMEOUT_SEC", "1800"))
+    max_attempts = max(1, int(os.environ.get("KUDU_ZIPDEPLOY_RETRIES", "5")))
+    backoff = float(os.environ.get("KUDU_ZIPDEPLOY_RETRY_BACKOFF_SEC", "25"))
+
     deploy_url = f"https://{host}/api/zipdeploy?isAsync=true"
     print("ZipDeploy (async):", deploy_url)
     print("SCM user:", user)
-
-    req = urllib.request.Request(deploy_url, data=body, method="POST")
-    req.add_header("Authorization", auth)
-    req.add_header("Content-Type", "application/zip")
+    print("POST timeout sec:", post_timeout, "retries:", max_attempts)
 
     deploy_id: str | None = None
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=300) as resp:
-            status = resp.status
-            raw = resp.read(16000)
-            print("ZipDeploy response HTTP", status)
+    last_status = -1
+    last_raw = b""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            status, raw = _post_zipdeploy_streaming(
+                host, auth, zip_path, ssl_ctx=ctx, timeout_sec=post_timeout
+            )
+            last_status, last_raw = status, raw
+            print("ZipDeploy response HTTP", status, "(attempt", attempt, "of", max_attempts, ")")
             if raw:
                 print(raw[:2000])
                 try:
@@ -74,12 +118,27 @@ def main() -> int:
                         print("Deployment id from response:", deploy_id)
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     pass
-            if status not in (200, 202):
-                print("ERROR: expected 200 or 202 from async zipdeploy", file=sys.stderr)
+            if status in (200, 202):
+                break
+            if status in (502, 503, 504) and attempt < max_attempts:
+                print(
+                    f"WARN: ZipDeploy HTTP {status}; retrying in {backoff:.0f}s",
+                    file=sys.stderr,
+                )
+                time.sleep(backoff)
+                continue
+            print("ERROR: unexpected HTTP status from async zipdeploy:", status, file=sys.stderr)
+            return 1
+        except (TimeoutError, OSError, http.client.HTTPException) as e:
+            print(f"WARN: ZipDeploy attempt {attempt} failed: {e!r}", file=sys.stderr)
+            if attempt >= max_attempts:
+                print("ERROR: ZipDeploy failed after retries", file=sys.stderr)
                 return 1
-    except urllib.error.HTTPError as e:
-        print("HTTPError on zipdeploy:", e.code, e.reason, file=sys.stderr)
-        print((e.read() or b"")[:4000].decode(errors="replace"), file=sys.stderr)
+            time.sleep(backoff)
+
+    if last_status not in (200, 202):
+        print("HTTPError on zipdeploy:", last_status, file=sys.stderr)
+        print(last_raw[:4000].decode(errors="replace"), file=sys.stderr)
         return 1
 
     time.sleep(5)
