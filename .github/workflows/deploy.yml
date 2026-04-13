@@ -1,10 +1,15 @@
-# Deploy Python Azure Functions (v2) with Azure/functions-action + publish profile.
+# Deploy Python Azure Functions without Azure/functions-action here:
+# that action still calls Kudu to flip SCM_DO_BUILD / ENABLE_ORYX (405) then zipdeploy (404)
+# when using publish-profile on many Linux Function Apps.
 #
-# GitHub secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData> XML
-# Portal: Function App -> Configuration -> General settings ->
-#   "SCM Basic Auth Publishing Credentials" = On
+# azure/webapps-deploy@v2 uses ZipDeploy (not OneDeploy like v3) and accepts a .zip + publish profile.
 #
-# Set AZURE_FUNCTIONAPP_NAME below to the exact app name in Azure (Overview).
+# Do NOT add "sku" or "remote-build" to webapps-deploy — they are not valid inputs (GitHub will warn).
+#
+# Secrets / portal:
+#   AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData> XML
+#   Portal -> Configuration -> General settings -> SCM Basic Auth Publishing Credentials = On
+#   Re-download publish profile after turning that on.
 
 name: Deploy Python API to Azure
 
@@ -55,12 +60,28 @@ jobs:
             pip install --no-cache-dir -r requirements.txt \
             --target=".python_packages/lib/site-packages"
 
-      - name: Deploy to Azure Functions
-        uses: Azure/functions-action@v1.5.1
+      - name: Create deployment zip
+        run: |
+          set -euo pipefail
+          rm -f /tmp/functionapp.zip
+          zip -rq /tmp/functionapp.zip . \
+            -x '.git/*' \
+            -x '.github/*' \
+            -x '*__pycache__*' \
+            -x '*.pyc' \
+            -x '.venv/*' \
+            -x 'venv/*' \
+            -x 'local.settings.json' \
+            -x '__blobstorage__/*' \
+            -x '__queuestorage__/*' \
+            -x '__azurite_db*'
+          echo "Zip size (bytes):" && wc -c </tmp/functionapp.zip
+
+      - name: Deploy to Azure Functions (ZipDeploy via webapps-deploy v2)
+        uses: azure/webapps-deploy@v2
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: "."
           sku: 'flexconsumption'
           remote-build: true
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          respect-funcignore: true
