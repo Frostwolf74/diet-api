@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # This MUST match the name of the lightning bolt resource in Azure
-  AZURE_FUNCTIONAPP_NAME: diet-api 
+  # CHANGED: Using the full name revealed in your logs
+  AZURE_FUNCTIONAPP_NAME: diet-api-hfegcjavhcamckcc 
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -36,8 +36,8 @@ jobs:
           mkdir -p .python_packages/lib/site-packages
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
 
-      - name: The Bypass — Deploy via WebApps Action
-        uses: azure/webapps-deploy@v3
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
