@@ -1,3 +1,14 @@
+# Deploy using GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE (full publishData XML).
+#
+# Before deploy works reliably with ZipDeploy + publish profile:
+#   Portal → your Function App → Configuration → General settings
+#   → "SCM Basic Auth Publishing Credentials" = On → Save
+#   (Fixes common HTTP 405 on Kudu app-setting updates and HTTP 404 on zipdeploy.)
+#
+# Secret: paste the entire <publishData>...</publishData> document from
+#   Function App → Overview → Get publish profile
+# into GitHub → Settings → Secrets → AZURE_FUNCTIONAPP_PUBLISH_PROFILE
+
 name: Deploy Python API to Azure
 
 on:
@@ -13,7 +24,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AZURE_FUNCTIONAPP_NAME: diet-function-123
+  # Must match the Function App name in Azure (see publish profile msdeploySite).
+  AZURE_FUNCTIONAPP_NAME: diet-api
   PYTHON_VERSION: "3.11"
 
 jobs:
@@ -28,16 +40,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Hybrid — install dependencies locally (warm .python_packages)
+      - name: Install dependencies into .python_packages
         run: |
           set -e
           python -m pip install --upgrade pip wheel
           mkdir -p .python_packages/lib/site-packages
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
 
-      - name: Hybrid — deploy + remote SCM / Oryx build on Azure
-        uses: Azure/functions-action@v1
+      - name: Deploy to Azure Functions (publish profile)
+        uses: Azure/functions-action@v1.5.1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
           package: "."
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          respect-funcignore: true
+          # Pre-built .python_packages above; avoid extra Kudu setting churn with publish profile
+          scm-do-build-during-deployment: false
+          enable-oryx-build: false
