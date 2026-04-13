@@ -1,0 +1,17 @@
+.git*
+.github
+.vscode
+.cursor
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.mypy_cache
+.env
+.venv
+venv
+local.settings.json
+*.md
+__blobstorage__
+__queuestorage__
+__azurite_db*
