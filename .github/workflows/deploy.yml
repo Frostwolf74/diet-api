@@ -1,14 +1,3 @@
-# Deploy using GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE (full publishData XML).
-#
-# Do NOT pass scm-do-build-during-deployment or enable-oryx-build here: with publish-profile
-# auth, the action would PATCH Kudu app settings and can get HTTP 405 before zip upload.
-#
-# Before deploy works reliably with ZipDeploy + publish profile:
-#   Portal → Function App → Configuration → General settings
-#   → "SCM Basic Auth Publishing Credentials" = On → Save
-#
-# Secret: entire <publishData>...</publishData> from Overview → Get publish profile
-
 name: Deploy Python API to Azure
 
 on:
@@ -24,9 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Must match the Function App *resource name* in Azure Portal (same app you used for the publish profile).
-  # Example: if Overview shows "diet-api", use diet-api; if it shows "diet-function-123", use that instead.
-  AZURE_FUNCTIONAPP_NAME: diet-api
+  AZURE_FUNCTIONAPP_NAME: diet-function-123
   PYTHON_VERSION: "3.11"
 
 jobs:
