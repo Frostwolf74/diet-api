@@ -53,6 +53,17 @@ jobs:
             pip install --no-cache-dir -r requirements.txt \
             --target=".python_packages/lib/site-packages"
 
+      - name: Prune site-packages tests dirs (smaller zip, fewer ZipDeploy timeouts)
+        run: |
+          set -euo pipefail
+          SP=".python_packages/lib/site-packages"
+          if [ -d "$SP" ]; then
+            find "$SP" -type d -name tests -print0 2>/dev/null | while IFS= read -r -d '' d; do
+              rm -rf "$d"
+            done
+          fi
+          du -sh .python_packages 2>/dev/null || true
+
       - name: Create deployment zip
         run: |
           set -euo pipefail
@@ -74,6 +85,9 @@ jobs:
         env:
           PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
           ZIP_PATH: /tmp/functionapp.zip
+          KUDU_ZIPDEPLOY_POST_TIMEOUT_SEC: "1800"
+          KUDU_ZIPDEPLOY_RETRIES: "6"
+          KUDU_ZIPDEPLOY_RETRY_BACKOFF_SEC: "30"
         run: |
           set -euo pipefail
           python3 "${GITHUB_WORKSPACE}/.github/scripts/kudu_zipdeploy.py"
