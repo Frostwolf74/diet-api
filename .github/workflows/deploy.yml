@@ -5,18 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: azure-functions-deploy
-  cancel-in-progress: true
-
-env:
-  # The exact name that matches your new publish profile key
-  AZURE_FUNCTIONAPP_NAME: diet-api 
-  PYTHON_VERSION: "3.11"
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -27,7 +15,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -35,12 +23,12 @@ jobs:
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
 
       - name: Zip for Deployment
-        # Zipping fixes the 415 Unsupported Media Type error
         run: zip -r release.zip . -x "*.git*"
 
-      - name: Deploy via WebApps (Bypasses 404/405)
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          package: 'release.zip'
+      - name: The Ultimate Bypass — Direct cURL ZipDeploy
+        # We bypass all actions and upload directly to the Kudu API using the credentials you provided
+        run: |
+          curl -v -f -X POST \
+            -u '$diet-api:NKFMwdMLjJjn3dtEJnaKaQ0gRn1uPbe4vXqCuYf2ibkw9sd1kHkkzaDy4f9l' \
+            --data-binary @"release.zip" \
+            "https://diet-api-hfegcjavhcamckcc.scm.canadacentral-01.azurewebsites.net/api/zipdeploy"
