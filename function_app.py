@@ -31,7 +31,6 @@ from shared.pipeline import (
     build_insights_payload,
     clean_dataframe,
     dataframe_to_csv_bytes,
-    insights_to_json_bytes,
     load_csv_bytes,
 )
 

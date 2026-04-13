@@ -1,15 +1,8 @@
-# Deploy Python Azure Functions without Azure/functions-action here:
-# that action still calls Kudu to flip SCM_DO_BUILD / ENABLE_ORYX (405) then zipdeploy (404)
-# when using publish-profile on many Linux Function Apps.
+# Deploy: build zip, then POST to Kudu ZipDeploy using publish profile XML.
+# (Removed duplicate webapps-deploy step and invalid sku / remote-build — not supported by that action.)
 #
-# azure/webapps-deploy@v2 uses ZipDeploy (not OneDeploy like v3) and accepts a .zip + publish profile.
-#
-# Do NOT add "sku" or "remote-build" to webapps-deploy — they are not valid inputs (GitHub will warn).
-#
-# Secrets / portal:
-#   AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData> XML
-#   Portal -> Configuration -> General settings -> SCM Basic Auth Publishing Credentials = On
-#   Re-download publish profile after turning that on.
+# Secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData>
+# Portal: SCM Basic Auth Publishing Credentials = On, then re-download publish profile.
 
 name: Deploy Python API to Azure
 
@@ -77,11 +70,10 @@ jobs:
             -x '__azurite_db*'
           echo "Zip size (bytes):" && wc -c </tmp/functionapp.zip
 
-      - name: Deploy to Azure Functions (ZipDeploy via webapps-deploy v2)
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          package: "."
-          sku: 'flexconsumption'
-          remote-build: true
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+      - name: ZipDeploy to Kudu (publish profile)
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          ZIP_PATH: /tmp/functionapp.zip
+        run: |
+          set -euo pipefail
+          python3 "${GITHUB_WORKSPACE}/.github/scripts/kudu_zipdeploy.py"
