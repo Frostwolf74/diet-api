@@ -1,8 +1,8 @@
-# Deploy with publish profile only: POST the zip to the ZipDeploy URL from the profile XML.
-# Skips azure/webapps-deploy and Azure/functions-action (runtime OS / 404 / invalid sku+remote-build issues).
+# Deploy: build zip, then POST to Kudu ZipDeploy using publish profile XML.
+# (Removed duplicate webapps-deploy step and invalid sku / remote-build — not supported by that action.)
 #
 # Secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData>
-# Portal: SCM Basic Auth Publishing Credentials = On, then re-download the publish profile.
+# Portal: SCM Basic Auth Publishing Credentials = On, then re-download publish profile.
 
 name: Deploy Python API to Azure
 
@@ -70,65 +70,10 @@ jobs:
             -x '__azurite_db*'
           echo "Zip size (bytes):" && wc -c </tmp/functionapp.zip
 
-      - name: ZipDeploy to Kudu (from publish profile XML)
+      - name: ZipDeploy to Kudu (publish profile)
         env:
           PUBLISH_PROFILE: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          ZIP_PATH: /tmp/functionapp.zip
         run: |
           set -euo pipefail
-          python3 << 'PY'
-          import base64
-          import os
-          import ssl
-          import urllib.error
-          import urllib.request
-          import xml.etree.ElementTree as ET
-
-          xml = os.environ.get("PUBLISH_PROFILE", "").strip()
-          if not xml:
-              raise SystemExit("AZURE_FUNCTIONAPP_PUBLISH_PROFILE is empty")
-
-          root = ET.fromstring(xml)
-          profiles = root.findall("publishProfile")
-          zp = next((p for p in profiles if p.get("publishMethod") == "ZipDeploy"), None)
-          if zp is None:
-              raise SystemExit("No publishProfile with publishMethod=ZipDeploy in publishData")
-
-          host = (zp.get("publishUrl") or "").replace(":443", "").strip()
-          user = zp.get("userName") or ""
-          pwd = zp.get("userPWD") or ""
-          if not host or not user or not pwd:
-              raise SystemExit("ZipDeploy profile missing publishUrl, userName, or userPWD")
-
-          url = f"https://{host}/api/zipdeploy"
-          print("ZipDeploy URL:", url)
-          print("SCM user:", user)
-
-          with open("/tmp/functionapp.zip", "rb") as f:
-              body = f.read()
-
-          req = urllib.request.Request(url, data=body, method="POST")
-          token = base64.b64encode(f"{user}:{pwd}".encode()).decode()
-          req.add_header("Authorization", f"Basic {token}")
-          req.add_header("Content-Type", "application/zip")
-
-          ctx = ssl.create_default_context()
-          try:
-              with urllib.request.urlopen(req, context=ctx, timeout=900) as resp:
-                  print("HTTP", resp.status)
-                  data = resp.read(8000)
-                  if data:
-                      print(data[:2000])
-          except urllib.error.HTTPError as e:
-              print("HTTPError", e.code, e.reason)
-              err = e.read() or b""
-              print(err[:4000].decode(errors="replace"))
-              raise
-          PY
-      - name: Deploy to Azure Functions (ZipDeploy via webapps-deploy v2)
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          package: "."
-          sku: 'flexconsumption'
-          remote-build: true
-          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
+          python3 "${GITHUB_WORKSPACE}/.github/scripts/kudu_zipdeploy.py"
