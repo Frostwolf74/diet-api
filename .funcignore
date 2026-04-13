@@ -1,5 +1,5 @@
-.git*
-.github
+.git/
+.github/
 .vscode
 .cursor
 __pycache__

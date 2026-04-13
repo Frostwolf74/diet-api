@@ -1,9 +1,10 @@
-# Azure Functions → use Azure/functions-action (Kudu zipdeploy).
-# azure/webapps-deploy@v3 uses OneDeploy and often fails on Function Apps with
-# 415 Unsupported Media Type / runtime detection warnings — not the right action here.
+# Deploy Python Azure Functions (v2) with Azure/functions-action + publish profile.
 #
-# Publish profile: GitHub secret AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>… XML.
-# Portal → Configuration → General settings → SCM Basic Auth Publishing Credentials = On
+# GitHub secret: AZURE_FUNCTIONAPP_PUBLISH_PROFILE = full <publishData>...</publishData> XML
+# Portal: Function App -> Configuration -> General settings ->
+#   "SCM Basic Auth Publishing Credentials" = On
+#
+# Set AZURE_FUNCTIONAPP_NAME below to the exact app name in Azure (Overview).
 
 name: Deploy Python API to Azure
 
@@ -20,13 +21,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Must match the Function App name in Azure Portal (same app as the publish profile).
   AZURE_FUNCTIONAPP_NAME: diet-api
   PYTHON_VERSION: "3.11"
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,12 +39,21 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Verify layout and syntax
+        run: |
+          set -euo pipefail
+          test -f host.json || { echo "::error::host.json missing at repo root"; exit 1; }
+          test -f function_app.py || { echo "::error::function_app.py missing"; exit 1; }
+          python -m compileall -q function_app.py shared
+
       - name: Install dependencies into .python_packages
         run: |
-          set -e
+          set -euo pipefail
           python -m pip install --upgrade pip wheel
           mkdir -p .python_packages/lib/site-packages
-          pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+          PIP_DISABLE_PIP_VERSION_CHECK=1 \
+            pip install --no-cache-dir -r requirements.txt \
+            --target=".python_packages/lib/site-packages"
 
       - name: Deploy to Azure Functions
         uses: Azure/functions-action@v1.5.1
