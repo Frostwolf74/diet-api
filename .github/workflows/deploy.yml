@@ -13,6 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
+  # The exact name that matches your new publish profile key
   AZURE_FUNCTIONAPP_NAME: diet-api 
   PYTHON_VERSION: "3.11"
 
@@ -28,17 +29,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install dependencies locally
+      - name: Install dependencies
         run: |
-          set -e
           python -m pip install --upgrade pip wheel
-          mkdir -p .python_packages/lib/site-packages
           pip install -r requirements.txt --target=".python_packages/lib/site-packages"
 
-      - name: Deploy to Azure Functions
-        uses: Azure/functions-action@v1.5.1
+      - name: Zip for Deployment
+        # Zipping fixes the 415 Unsupported Media Type error
+        run: zip -r release.zip . -x "*.git*"
+
+      - name: Deploy via WebApps (Bypasses 404/405)
+        uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
-          package: "."
-          respect-funcignore: true
+          package: 'release.zip'
